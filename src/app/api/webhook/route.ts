@@ -22,22 +22,35 @@ function genId(): string {
 
 export async function POST(req: NextRequest) {
   // Validate secret
-  const rawBody = await req.text();
-console.log('[webhook] RAW BODY:', rawBody);
+  if (!validateSecret(req)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
-try {
-  body = JSON.parse(rawBody);
-} catch (err: any) {
-  console.error('[webhook] JSON parse error:', err.message);
-  return NextResponse.json(
-    {
-      error: 'Invalid JSON body',
-      details: err.message,
-      ...(process.env.NODE_ENV === 'development' && { rawBody }),
-    },
-    { status: 400 }
-  );
-}
+  const rawBody = await req.text();
+  console.log('[webhook] RAW BODY:', rawBody);
+
+  let body: WebhookPayload;
+  try {
+    body = JSON.parse(rawBody);
+  } catch (err: any) {
+    console.error('[webhook] JSON parse error:', err.message);
+    return NextResponse.json(
+      {
+        error: 'Invalid JSON body',
+        details: err.message,
+        ...(process.env.NODE_ENV === 'development' && { rawBody }),
+      },
+      { status: 400 }
+    );
+  }
+
+  const { prompt, clientName, sessionType, email, notionPageId } = body;
+
+  if (!prompt?.trim()) {
+    return NextResponse.json({ error: 'prompt is required' }, { status: 400 });
+  }
+
+  const projectId = genId();
 
   // ── RESPOND IMMEDIATELY (fire and forget) ────────────────────────────────
   // n8n gets 202 right away. Generation happens in background.
